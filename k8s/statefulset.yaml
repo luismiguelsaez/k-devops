@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: litecoin-daemon
+spec:
+  selector:
+    matchLabels:
+      app: litecoin-daemon
+  serviceName: litecoin-daemon
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: litecoin-daemon
+    spec:
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+      - name: volume-setup
+        image: busybox
+        command: ["sh", "-c", "chown -R 1000:1000 /app/data"]
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+          readOnly: false
+      containers:
+      - name: litecoind
+        image: luismiguelsaez/litecoind:0.18.1
+        imagePullPolicy: Always
+        args:
+          - -datadir=/app/data
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          privileged: false
+        livenessProbe:
+          exec:
+            command:
+              - "pidof litecoind"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 150Mi
+          limits:
+            cpu: 1000m
+            memory: 200Mi
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+          readOnly: false
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "standard"
+      resources:
+        requests:
+          storage: 100Mi
